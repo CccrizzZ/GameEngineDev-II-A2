@@ -1,25 +1,27 @@
-#include "Game.h"
+#include "Game.hpp"
 
 const int gNumFrameResources = 3;
 
-A1::A1(HINSTANCE hInstance)	: D3DApp(hInstance)
+Game::Game(HINSTANCE hInstance)
+	: D3DApp(hInstance)
+	, mWorld(this)
 {
 }
 
-A1::~A1()
+Game::~Game()
 {
 	if (md3dDevice != nullptr)
-	{
 		FlushCommandQueue();
-	}
 }
 
-bool A1::Initialize()
+bool Game::Initialize()
 {
 	if (!D3DApp::Initialize())
-	{
 		return false;
-	}
+
+
+	mCamera.SetPosition(0, 5, 0);
+	mCamera.Pitch(3.14 / 2);
 
 	// Reset the command list to prep for initialization commands.
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
@@ -28,20 +30,13 @@ bool A1::Initialize()
 	// so we have to query this information.
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	// mWorld.GameRef = this;
-
-
-
-
 	LoadTextures();
-	BuildMaterials();
-
 	BuildRootSignature();
-
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildShapeGeometry();
-	BuildShapeRenderItems();
+	BuildMaterials();
+	BuildRenderItems();
 	BuildFrameResources();
 	BuildPSOs();
 
@@ -56,23 +51,22 @@ bool A1::Initialize()
 	return true;
 }
 
-void A1::OnResize()
+void Game::OnResize()
 {
 	D3DApp::OnResize();
 
 	// The window resized, so update the aspect ratio and recompute the projection matrix.
-	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
-	XMStoreFloat4x4(&mProj, P);
+	//XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+	//XMStoreFloat4x4(&mProj, P);
+
+	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 }
 
-void A1::Update(const GameTimer& gt)
+void Game::Update(const GameTimer& gt)
 {
-	OnKeyboardInput(gt);
-	UpdateCamera(gt);
-
-
-	mWorld->Update(gt);
-
+	// OnKeyboardInput(gt);
+	//UpdateCamera(gt);
+	mWorld.update(gt);
 
 	// Cycle through the circular frame resource array.
 	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
@@ -88,14 +82,13 @@ void A1::Update(const GameTimer& gt)
 		CloseHandle(eventHandle);
 	}
 
+	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
-	// mWorld->AllRenderItems.pop_back();
-	// mWorld->AllRenderItems.pop_back();
 }
 
-void A1::Draw(const GameTimer& gt)
+void Game::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
@@ -105,7 +98,7 @@ void A1::Draw(const GameTimer& gt)
 
 	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
 	// Reusing the command list reuses memory.
-	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mOpaquePSO.Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -115,7 +108,7 @@ void A1::Draw(const GameTimer& gt)
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 	// Clear the back buffer and depth buffer.
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	// Specify the buffers we are going to render to.
@@ -129,19 +122,8 @@ void A1::Draw(const GameTimer& gt)
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
-
-
-	// mWorld->Draw();
-
-
-
-	DrawRenderItems(mCommandList.Get(), mWorld->mRitemLayer[(int)RenderLayer::Opaque]);
-
-	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
-	DrawRenderItems(mCommandList.Get(), mWorld->mRitemLayer[(int)RenderLayer::AlphaTested]);
-
-	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
-	DrawRenderItems(mCommandList.Get(), mWorld->mRitemLayer[(int)RenderLayer::Transparent]);
+	mWorld.draw();
+	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -161,14 +143,13 @@ void A1::Draw(const GameTimer& gt)
 	// Advance the fence value to mark commands up to this fence point.
 	mCurrFrameResource->Fence = ++mCurrentFence;
 
-
 	// Add an instruction to the command queue to set a new fence point. 
 	// Because we are on the GPU timeline, the new fence point won't be 
 	// set until the GPU finishes processing all the commands prior to this Signal().
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void A1::OnMouseDown(WPARAM btnState, int x, int y)
+void Game::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -176,87 +157,106 @@ void A1::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void A1::OnMouseUp(WPARAM btnState, int x, int y)
+void Game::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void A1::OnMouseMove(WPARAM btnState, int x, int y)
+void Game::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	// if ((btnState & MK_LBUTTON) != 0)
-	// {
-	// 	// Make each pixel correspond to a quarter of a degree.
-	// 	float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
-	// 	float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+	if ((btnState & MK_LBUTTON) != 0)
+	{
+		// Make each pixel correspond to a quarter of a degree.
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
-	// 	// Update angles based on input to orbit camera around box.
-	// 	mTheta -= dx;
-	// 	mPhi -= dy;
-
-	// 	// Restrict the angle mPhi.
-	// 	mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	// }
-	// else if ((btnState & MK_RBUTTON) != 0)
-	// {
-	// 	// Make each pixel correspond to 0.2 unit in the scene.
-	// 	float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
-	// 	float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
-
-	// 	// Update the camera radius based on input.
-	// 	mRadius += dx - dy;
-
-	// 	// Restrict the radius.
-	// 	mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
-	// }
-
-	// mLastMousePos.x = x;
-	// mLastMousePos.y = y;
+		mCamera.Pitch(dy);
+		mCamera.RotateY(dx);
+	}
+	mLastMousePos.x = x;
+	mLastMousePos.y = y;
 }
 
-void A1::OnKeyboardInput(const GameTimer& gt)
+void Game::OnKeyboardInput(const GameTimer& gt)
 {
-	if (GetAsyncKeyState('D') & 0x8000)
-	{
-		// mEyePos.x = mEyePos.x + 0.1;
-	}
+	// const float dt = gt.DeltaTime();
 
-	if (GetAsyncKeyState('S') & 0x8000)
-	{
-		// mEyePos.z = mEyePos.z - 0.1;
-	}
+	// mCamera.GetLook();
+	// float tmin = 0;
+	// float buffer = 0.5;
+	// XMFLOAT3  oppositef3(-1, -1, -1);
+	// XMVECTOR opposite = XMLoadFloat3(&oppositef3);
 
-	if (GetAsyncKeyState('A') & 0x8000)
-	{
-		// mEyePos.x = mEyePos.x - 0.1;
-	}
+	// if (GetAsyncKeyState('W') & 0x8000)
+	// {
+	// 	bool hit = false;
 
-	if (GetAsyncKeyState('W') & 0x8000)
-	{
-		// mEyePos.z = mEyePos.z + 0.1;
-		
-	}
+	// 	if (!hit)
+	// 	{
+	// 		mCamera.Walk(10.0f * dt);
+
+	// 	}
+	// }
+
+	// if (GetAsyncKeyState('S') & 0x8000)
+	// {
+	// 	bool hit = false;
+	// 	if (!hit)
+	// 	{
+	// 		mCamera.Walk(-10.0f * dt);
+	// 	}
+
+	// }
+	// if (GetAsyncKeyState('A') & 0x8000)
+	// {
+	// 	bool hit = false;
+	// 	if (!hit)
+	// 	{
+	// 		mCamera.Strafe(-10.0f * dt);
+	// 	}
+
+
+	// }
+	// if (GetAsyncKeyState('D') & 0x8000)
+	// {
+	// 	bool hit = false;
+	// 	if (!hit)
+	// 	{
+	// 		mCamera.Strafe(10.0f * dt);
+	// 	}
+	// }
+
+
+	// mCamera.UpdateViewMatrix();
 }
 
-void A1::UpdateCamera(const GameTimer& gt)
+void Game::UpdateCamera(const GameTimer& gt)
 {
 	// Convert Spherical to Cartesian coordinates.
 	//mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
 	//mEyePos.z = mRadius * sinf(mPhi) * sinf(mTheta);
 	//mEyePos.y = mRadius * cosf(mPhi);
 
-	// Build the view matrix.
-	XMVECTOR pos = XMVectorSet(0, 100, 0, 1.0f);
-	XMVECTOR target = XMVectorZero();
-	XMVECTOR right = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	//// Build the view matrix.
+	//XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
+	//XMVECTOR target = XMVectorZero();
+	//XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-	XMMATRIX view = XMMatrixLookAtLH(pos, target, right);
-	XMStoreFloat4x4(&mView, view);
+	//XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	//XMStoreFloat4x4(&mView, view);
+
+
 }
 
-void A1::UpdateObjectCBs(const GameTimer& gt)
+void Game::AnimateMaterials(const GameTimer& gt)
+{
+
+}
+
+void Game::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	for (auto& e : mWorld->AllRenderItems)
+	for (auto& e : mAllRitems)
 	{
 		// Only update the cbuffer data if the constants have changed.  
 		// This needs to be tracked per frame resource.
@@ -277,59 +277,101 @@ void A1::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void A1::LoadTextures()
+void Game::UpdateMaterialCBs(const GameTimer& gt)
 {
-	// background texture
-	auto BackgroundTex = std::make_unique<Texture>();
-	BackgroundTex->Name = "BackgroundTex";
-	BackgroundTex->Filename = L"../../Textures/grass.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
-		md3dDevice.Get(),
-		mCommandList.Get(),
-		BackgroundTex->Filename.c_str(),
-		BackgroundTex->Resource,
-		BackgroundTex->UploadHeap
-	));
-	mTextures[BackgroundTex->Name] = std::move(BackgroundTex);
+	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+	for (auto& e : mMaterials)
+	{
+		// Only update the cbuffer data if the constants have changed.  If the cbuffer
+		// data changes, it needs to be updated for each FrameResource.
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty > 0)
+		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
 
+			MaterialConstants matConstants;
+			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matConstants.FresnelR0 = mat->FresnelR0;
+			matConstants.Roughness = mat->Roughness;
+			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
 
+			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
-	// plane texture
-	auto PlaneTex = std::make_unique<Texture>();
-	PlaneTex->Name = "PlaneTex";
-	PlaneTex->Filename = L"../../Textures/Eagle.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
-		md3dDevice.Get(),
-		mCommandList.Get(),
-		PlaneTex->Filename.c_str(),
-		PlaneTex->Resource,
-		PlaneTex->UploadHeap
-	));
-	mTextures[PlaneTex->Name] = std::move(PlaneTex);
+			// Next FrameResource need to be updated too.
+			mat->NumFramesDirty--;
+		}
+	}
 }
 
-void A1::BuildMaterials()
+void Game::UpdateMainPassCB(const GameTimer& gt)
 {
-	// background material
-	auto BackgroundMat = std::make_unique<Material>();
-	BackgroundMat->Name = "BackgroundMat";
-	BackgroundMat->MatCBIndex = 0;
-	BackgroundMat->DiffuseSrvHeapIndex = 0;
-	BackgroundMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	mWorld->mMaterials["BackgroundMat"] = std::move(BackgroundMat);
+	XMMATRIX view = mCamera.GetView();
+	XMMATRIX proj = mCamera.GetProj();
 
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
 
-	// plane material
-	auto PlaneMat = std::make_unique<Material>();
-	PlaneMat->Name = "PlaneMat";
-	PlaneMat->MatCBIndex = 1;
-	PlaneMat->DiffuseSrvHeapIndex = 1;
-	PlaneMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	mWorld->mMaterials["PlaneMat"] = std::move(PlaneMat);
+	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();
+	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
+	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+
+	auto currPassCB = mCurrFrameResource->PassCB.get();
+	currPassCB->CopyData(0, mMainPassCB);
 }
 
+void Game::LoadTextures()
+{
+	//Eagle
+	auto EagleTex = std::make_unique<Texture>();
+	EagleTex->Name = "EagleTex";
+	EagleTex->Filename = L"../../Textures/Eagle.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), EagleTex->Filename.c_str(),
+		EagleTex->Resource, EagleTex->UploadHeap));
 
-void A1::BuildRootSignature()
+	mTextures[EagleTex->Name] = std::move(EagleTex);
+
+	//Raptor
+	auto RaptorTex = std::make_unique<Texture>();
+	RaptorTex->Name = "RaptorTex";
+	RaptorTex->Filename = L"../../Textures/Raptor.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), RaptorTex->Filename.c_str(),
+		RaptorTex->Resource, RaptorTex->UploadHeap));
+
+	mTextures[RaptorTex->Name] = std::move(RaptorTex);
+
+	//Desert
+	auto DesertTex = std::make_unique<Texture>();
+	DesertTex->Name = "DesertTex";
+	DesertTex->Filename = L"../../Textures/Desert.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), DesertTex->Filename.c_str(),
+		DesertTex->Resource, DesertTex->UploadHeap));
+
+	mTextures[DesertTex->Name] = std::move(DesertTex);
+}
+
+void Game::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
@@ -346,19 +388,17 @@ void A1::BuildRootSignature()
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
+	//The Init function of the CD3DX12_ROOT_SIGNATURE_DESC class has two parameters that allow you to
+		//define an array of so - called static samplers your application can use.
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
-		(UINT)staticSamplers.size(), staticSamplers.data(),
+		(UINT)staticSamplers.size(), staticSamplers.data(),  //6 samplers!
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
-	HRESULT hr = D3D12SerializeRootSignature(
-		&rootSigDesc,
-		D3D_ROOT_SIGNATURE_VERSION_1,
-		serializedRootSig.GetAddressOf(),
-		errorBlob.GetAddressOf()
-	);
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
 	if (errorBlob != nullptr)
 	{
@@ -373,76 +413,129 @@ void A1::BuildRootSignature()
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void A1::BuildDescriptorHeaps()
+//Once a texture resource is created, we need to create an SRV descriptor to it which we
+//can set to a root signature parameter slot for use by the shader programs.
+void Game::BuildDescriptorHeaps()
 {
+	//
 	// Create the SRV heap.
+	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 2;
+	srvHeapDesc.NumDescriptors = 3;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
+	//
 	// Fill out the heap with actual descriptors.
+	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-
-	// background material
-	auto BackgroundMat = mTextures["BackgroundTex"]->Resource;
+	auto EagleTex = mTextures["EagleTex"]->Resource;
+	auto RaptorTex = mTextures["RaptorTex"]->Resource;
+	auto DesertTex = mTextures["DesertTex"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+
+	//This mapping enables the shader resource view (SRV) to choose how memory gets routed to the 4 return components in a shader after a memory fetch.
+	//When a texture is sampled in a shader, it will return a vector of the texture data at the specified texture coordinates.
+	//This field provides a way to reorder the vector components returned when sampling the texture.
+	//D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING  will not reorder the components and just return the data in the order it is stored in the texture resource.
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = BackgroundMat->GetDesc().Format;
+
+	srvDesc.Format = EagleTex->GetDesc().Format;
+
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = -1;
-	md3dDevice->CreateShaderResourceView(BackgroundMat.Get(), &srvDesc, hDescriptor);
+	//The number of mipmap levels to view, starting at MostDetailedMip.This field, along with MostDetailedMip allows us to
+	//specify a subrange of mipmap levels to view.You can specify - 1 to indicate to view
+	//all mipmap levels from MostDetailedMip down to the last mipmap level.
 
-	// plane material
-	auto PlaneMat = mTextures["PlaneTex"]->Resource;
+	srvDesc.Texture2D.MipLevels = EagleTex->GetDesc().MipLevels;
+
+	//Specifies the minimum mipmap level that can be accessed. 0.0 means all the mipmap levels can be accessed.
+	//Specifying 3.0 means mipmap levels 3.0 to MipCount - 1 can be accessed.
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+	md3dDevice->CreateShaderResourceView(EagleTex.Get(), &srvDesc, hDescriptor);
+
+	//Raptor Descriptor
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-	srvDesc.Format = PlaneMat->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(PlaneMat.Get(), &srvDesc, hDescriptor);
+	srvDesc.Format = RaptorTex->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(RaptorTex.Get(), &srvDesc, hDescriptor);
+
+	//Desert Descriptor
+	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	srvDesc.Format = DesertTex->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(DesertTex.Get(), &srvDesc, hDescriptor);
 
 }
 
-void A1::BuildShadersAndInputLayout()
+void Game::BuildShadersAndInputLayout()
 {
-	const D3D_SHADER_MACRO defines[] =
-	{
-		"FOG", "1",
-		NULL, NULL
-	};
-
-	const D3D_SHADER_MACRO alphaTestDefines[] =
-	{
-		"FOG", "1",
-		"ALPHA_TEST",
-		NULL, NULL
-	};
-
-	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
-	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
-
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_1");
 
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		//step3
+		//The texture coordinates determine what part of the texture gets mapped on the triangles.
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
-
 }
 
-
-void A1::helpBuildSubMesh(GeometryGenerator::MeshData name, SubmeshGeometry& subName, UINT nameVertexOffset, UINT nameIndexOffset)
+void Game::BuildShapeGeometry()
 {
-	subName.IndexCount = (UINT)name.Indices32.size();
-	subName.StartIndexLocation = nameIndexOffset;
-	subName.BaseVertexLocation = nameVertexOffset;
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(1, 0, 1, 1);
+	SubmeshGeometry boxSubmesh;
+	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
+	boxSubmesh.StartIndexLocation = 0;
+	boxSubmesh.BaseVertexLocation = 0;
+
+
+	std::vector<Vertex> vertices(box.Vertices.size());
+
+	for (size_t i = 0; i < box.Vertices.size(); ++i)
+	{
+		vertices[i].Pos = box.Vertices[i].Position;
+		vertices[i].Normal = box.Vertices[i].Normal;
+		vertices[i].TexC = box.Vertices[i].TexC;
+	}
+
+	std::vector<std::uint16_t> indices = box.GetIndices16();
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "boxGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	geo->DrawArgs["box"] = boxSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
 }
 
-void A1::BuildPSOs()
+void Game::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -472,80 +565,62 @@ void A1::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
-
-	//
-	// PSO for transparent objects
-	//
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
-
-	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
-	transparencyBlendDesc.BlendEnable = true;
-	transparencyBlendDesc.LogicOpEnable = false;
-
-	//suppose that we want to blend the sourceand destination pixels based on the opacity of the source pixel :
-	//source blend factor : D3D12_BLEND_SRC_ALPHA
-	//destination blend factor : D3D12_BLEND_INV_SRC_ALPHA
-	//blend operator : D3D12_BLEND_OP_ADD
-
-
-	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-
-	//you could  specify the blend factor or not..
-	//F = (r, g, b) and F = a, where the color (r, g, b,a) is supplied to the  parameter of the ID3D12GraphicsCommandList::OMSetBlendFactor method.
-	//transparencyBlendDesc.SrcBlend = D3D12_BLEND_BLEND_FACTOR;
-	//transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_BLEND_FACTOR;
-
-	//Hooman: try different blend operators to see the blending effect
-	//D3D12_BLEND_OP_ADD,
-	//D3D12_BLEND_OP_SUBTRACT,
-	//D3D12_BLEND_OP_REV_SUBTRACT,
-	//D3D12_BLEND_OP_MIN,
-	//D3D12_BLEND_OP_MAX
-
-	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD,
-
-		transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
-	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
-	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
-	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-	//transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_BLUE;
-	//Direct3D supports rendering to up to eight render targets simultaneously.
-	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
-
-	//
-	// PSO for alpha tested objects
-	//
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
-	alphaTestedPsoDesc.PS =
-	{
-		reinterpret_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer()),
-		mShaders["alphaTestedPS"]->GetBufferSize()
-	};
-	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mOpaquePSO)));
 }
 
-void A1::BuildFrameResources()
+void Game::BuildFrameResources()
 {
 	for (int i = 0; i < gNumFrameResources; ++i)
 	{
-		mFrameResources.push_back(std::make_unique<FrameResource>(
-			md3dDevice.Get(),
-			1,
-			(UINT)mWorld->AllRenderItems.size(),
-			(UINT)mWorld->mMaterials.size()
-			));
+		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+			1, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
 	}
 }
+//step13
+void Game::BuildMaterials()
+{
+	auto Eagle = std::make_unique<Material>();
+	Eagle->Name = "Eagle";
+	Eagle->MatCBIndex = 0;
+	Eagle->DiffuseSrvHeapIndex = 0;
+	Eagle->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	Eagle->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	Eagle->Roughness = 0.2f;
 
+	mMaterials["Eagle"] = std::move(Eagle);
 
-void A1::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+	auto Raptor = std::make_unique<Material>();
+	Raptor->Name = "Raptor";
+	Raptor->MatCBIndex = 1;
+	Raptor->DiffuseSrvHeapIndex = 1;
+	Raptor->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	Raptor->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	Raptor->Roughness = 0.2f;
+
+	mMaterials["Raptor"] = std::move(Raptor);
+
+	auto Desert = std::make_unique<Material>();
+	Desert->Name = "Desert";
+	Desert->MatCBIndex = 2;
+	Desert->DiffuseSrvHeapIndex = 2;
+	Desert->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	Desert->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	Desert->Roughness = 0.2f;
+
+	mMaterials["Desert"] = std::move(Desert);
+
+}
+
+void Game::BuildRenderItems()
+{
+	mWorld.buildScene();
+
+	// All the render items are opaque.
+	for (auto& e : mAllRitems)
+		mOpaqueRitems.push_back(e.get());
+}
+
+void Game::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
@@ -562,15 +637,14 @@ void A1::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<R
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(
-			mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
-		);
-
+		//step18
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
 
+		//step19
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
 		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
 		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
@@ -579,7 +653,8 @@ void A1::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<R
 	}
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> A1::GetStaticSamplers()
+//step21
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Game::GetStaticSamplers()
 {
 	// Applications usually only need a handful of samplers.  So just define them all up front
 	// and keep them available as part of the root signature.  
@@ -634,164 +709,4 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> A1::GetStaticSamplers()
 		pointWrap, pointClamp,
 		linearWrap, linearClamp,
 		anisotropicWrap, anisotropicClamp };
-}
-
-
-
-
-void A1::UpdateMaterialCBs(const GameTimer& gt)
-{
-	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-	for (auto& e : mWorld->mMaterials)
-	{
-		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-		// data changes, it needs to be updated for each FrameResource.
-		Material* mat = e.second.get();
-		if (mat->NumFramesDirty > 0)
-		{
-			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
-
-			MaterialConstants matConstants;
-			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-			matConstants.FresnelR0 = mat->FresnelR0;
-			matConstants.Roughness = mat->Roughness;
-			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
-
-			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
-
-			// Next FrameResource need to be updated too.
-			mat->NumFramesDirty--;
-		}
-	}
-}
-
-void A1::UpdateMainPassCB(const GameTimer& gt)
-{
-	XMMATRIX view = XMLoadFloat4x4(&mView);
-	XMMATRIX proj = XMLoadFloat4x4(&mProj);
-
-	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
-	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
-
-	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
-	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
-	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
-	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
-	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
-	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mMainPassCB.EyePosW = mEyePos;
-	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
-	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
-	mMainPassCB.NearZ = 1.0f;
-	mMainPassCB.FarZ = 1000.0f;
-	mMainPassCB.TotalTime = gt.TotalTime();
-	mMainPassCB.DeltaTime = gt.DeltaTime();
-	mMainPassCB.AmbientLight = { 1.1f, 1.1f, 1.1f, 1.0f };
-
-	//mMainPassCB.Lights[0].Direction = { 0, -1.0f, 0 };
-	//mMainPassCB.Lights[0].Strength = { 0.5f, 0.5f, 0.1f };
-
-	//mMainPassCB.Lights[1].Position = { 0.0f, 10.0f, 0.0f };
-	//mMainPassCB.Lights[1].Strength = { 5.0f, 1.0f, 1.0f };
-
-	//mMainPassCB.Lights[2].Position = { 4.0f, 5.0f, 3.0f };
-	//mMainPassCB.Lights[2].Strength = { 2.0f, 0.0f, 2.0f };
-
-	//mMainPassCB.Lights[3].Position = { -5.0f, 7.0f, 3.0f };
-	//mMainPassCB.Lights[3].Strength = { 0.0f, 2.0f, 4.0f };
-
-	auto currPassCB = mCurrFrameResource->PassCB.get();
-	currPassCB->CopyData(0, mMainPassCB);
-}
-
-
-
-void A1::BuildShapeGeometry()
-{
-	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(50.0f, 50.0f, 10, 10);
-
-
-	// Cache the vertex offsets to each object in the concatenated vertex buffer.
-
-	UINT gridVertexOffset = 0;
-	// = (UINT)prev.Vertices.size();
-
-
-	// Cache the starting index for each object in the concatenated index buffer.
-	UINT gridIndexOffset = 0;
-
-
-	// Define the SubmeshGeometry that cover different
-	// regions of the vertex/index buffers.
-
-	SubmeshGeometry gridSubmesh;
-	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
-	gridSubmesh.StartIndexLocation = gridIndexOffset;
-	gridSubmesh.BaseVertexLocation = gridVertexOffset;
-
-	// Extract the vertex elements we are interested in and pack the
-	// vertices of all the meshes into one vertex buffer.
-
-	auto totalVertexCount =
-		grid.Vertices.size()
-		;
-
-	std::vector<Vertex> vertices(totalVertexCount);
-
-	UINT k = 0;
-
-	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = grid.Vertices[i].Position;
-		vertices[k].Normal = grid.Vertices[i].Normal;
-		vertices[k].TexC = grid.Vertices[i].TexC;
-	}
-
-
-	std::vector<std::uint16_t> indices;
-
-	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
-
-	// Stop here
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "shapeGeo";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	geo->DrawArgs["Quad"] = gridSubmesh;
-
-	mWorld->mGeometries[geo->Name] = std::move(geo);
-}
-
-void A1::BuildShapeRenderItems()
-{
-
-
-
-	mWorld->Init();
-
-
-
 }

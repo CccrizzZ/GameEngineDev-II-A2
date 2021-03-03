@@ -1,178 +1,149 @@
-#include "SceneNode.h"
+#include "SceneNode.hpp"
+#include "Game.hpp"
 
-
-// SceneNode::SceneNode(A1* gRef)
-//     : ChildrenList(), 
-//     ParentNode(nullptr),
-//     GameRef(gRef)
-// {
-    
-//     // GameRef = gRef;
-
-
-//     Position = XMFLOAT3(0,0,0);
-//     Scale = XMFLOAT3(1,1,1);
-//     Rotation = XMFLOAT3(0,0,0);
-// }
-
-SceneNode::SceneNode()
+SceneNode::SceneNode(Game* game)
+	: mChildren()
+	, mParent(nullptr)
+	, game(game)
 {
-
-    Position = XMFLOAT3(0,0,0);
-    Scale = XMFLOAT3(1,1,1);
-    Rotation = XMFLOAT3(0,0,0);
+	mWorldPosition = XMFLOAT3(0, 0, 0);
+	mWorldScaling = XMFLOAT3(1, 1, 1);
+	mWorldRotation = XMFLOAT3(0, 0, 0);
 }
 
-SceneNode::~SceneNode()
+void SceneNode::attachChild(Ptr child)
 {
-
+	child->mParent = this;
+	mChildren.push_back(std::move(child));
 }
 
+SceneNode::Ptr SceneNode::detachChild(const SceneNode& node)
+{
+	auto found = std::find_if(mChildren.begin(), mChildren.end(), [&](Ptr& p) { return p.get() == &node; });
+	assert(found != mChildren.end());
 
+	Ptr result = std::move(*found);
+	result->mParent = nullptr;
+	mChildren.erase(found);
+	return result;
+}
 
-// void SceneNode::AttachChildNode(sNode_Ptr child)
-// {
-//     // set new node's parent node
-//     // child->ParentNode = this;
-//     // ChildrenList.push_back(child);
-// }
+void SceneNode::update(const GameTimer& gt)
+{
+	updateCurrent(gt);
+	updateChildren(gt);
+}
 
+void SceneNode::updateCurrent(const GameTimer& gt)
+{
+	// Do nothing by default
+}
 
-// unique_ptr<SceneNode> SceneNode::DetachChildNode(SceneNode& node)
-// {
-//     if(find(ChildrenList.begin(), ChildrenList.end(), node) != ChildrenList.end())
-//     {
-//         return node;
-//     }
+void SceneNode::updateChildren(const GameTimer& gt)
+{
+	for (Ptr& child : mChildren)
+	{
+		child->update(gt);
+	}
+}
 
-//     return node;
-// }
+void SceneNode::draw() const
+{
+	drawCurrent();
+	drawChildren();
+}
 
+void SceneNode::drawCurrent() const
+{
+	//Empty for now
+}
 
+void SceneNode::drawChildren() const
+{
+	for (const Ptr& child : mChildren)
+	{
+		child->draw();
+	}
+}
 
-// void SceneNode::Init()
-// {
-//     InitCurrentNode();
-//     InitChildrenNode();
-// }
+void SceneNode::build()
+{
+	buildCurrent();
+	buildChildren();
+}
 
-// void SceneNode::InitCurrentNode()
-// {
+void SceneNode::buildCurrent()
+{
+	//Empty for now
+}
 
-// }
+void SceneNode::buildChildren()
+{
+	for (const Ptr& child : mChildren)
+	{
+		child->build();
+	}
+}
 
-// void SceneNode::InitChildrenNode()
-// {
-//     // for(const sNode_Ptr& c : ChildrenList)
-//     // {
-//     //     c->Init();
-//     // }
-// }
-
-
-
-
-
-// void SceneNode::Update(const GameTimer& gt)
-// {
-//     UpdateCurrentNode(gt);
-//     UpdateChildrenNode(gt);
-// }
-
-// void SceneNode::UpdateCurrentNode(const GameTimer& gt)
-// {
-
-// }
-
-// void SceneNode::UpdateChildrenNode(const GameTimer& gt)
-// {
-//     // for (sNode_Ptr& c : ChildrenList)
-// 	// {
-// 	// 	c->Update(gt);
-// 	// }
-// }
-
-
-
-
-// void SceneNode::Draw()
-// {
-//     DrawCurrentNode();
-//     DrawChildrenNode();
-// }
-
-// void SceneNode::DrawCurrentNode()
-// {
-
-// }
-
-// void SceneNode::DrawChildrenNode()
-// {
-// 	// for (const sNode_Ptr& c : ChildrenList)
-// 	// {
-// 	// 	c->Draw();
-// 	// }
-// }
-
-
-
-
+XMFLOAT3 SceneNode::getWorldPosition() const
+{
+	return mWorldPosition;
+}
 
 void SceneNode::setPosition(float x, float y, float z)
 {
-    Position = XMFLOAT3(x,y,z);
+	mWorldPosition = XMFLOAT3(x, y, z);
 }
 
-void SceneNode::setRotation(float x, float y, float z)
+XMFLOAT3 SceneNode::getWorldRotation() const
 {
-    Rotation = XMFLOAT3(x,y,z);
+	return mWorldRotation;
+}
+
+void SceneNode::setWorldRotation(float x, float y, float z)
+{
+	mWorldRotation = XMFLOAT3(x, y, z);
+}
+
+XMFLOAT3 SceneNode::getWorldScale() const
+{
+	return mWorldScaling;
 }
 
 void SceneNode::setScale(float x, float y, float z)
 {
-    Scale = XMFLOAT3(x,y,z);
+	mWorldScaling = XMFLOAT3(x, y, z);
 }
 
-XMFLOAT3 SceneNode::getPosition()
+XMFLOAT4X4 SceneNode::getWorldTransform() const
 {
-    return Position;
+	XMFLOAT4X4 transform = MathHelper::Identity4x4();
+	XMMATRIX T = XMLoadFloat4x4(&transform);
+
+	for (const SceneNode* node = this; node != nullptr; node = node->mParent)
+	{
+		XMMATRIX Tp = XMLoadFloat4x4(&node->getTransform());
+		T = Tp * T;
+	}
+	XMStoreFloat4x4(&transform, T);
+
+	return transform;
 }
 
-XMFLOAT3 SceneNode::getRotation()
+XMFLOAT4X4 SceneNode::getTransform() const
 {
-    return Rotation;
+	XMFLOAT4X4 transform;
+	XMStoreFloat4x4(&transform, XMMatrixScaling(mWorldScaling.x, mWorldScaling.y, mWorldScaling.z) *
+		XMMatrixRotationX(mWorldRotation.x) *
+		XMMatrixRotationY(mWorldRotation.y) *
+		XMMatrixRotationZ(mWorldRotation.z) *
+		XMMatrixTranslation(mWorldPosition.x, mWorldPosition.y, mWorldPosition.z));
+	return transform;
 }
 
-XMFLOAT3 SceneNode::getscale()
+void SceneNode::move(float x, float y, float z)
 {
-    return Scale;
-}
-
-XMFLOAT4X4 SceneNode::getTransform()
-{
-    // temp matrix
-    XMFLOAT4X4 transform;
-
-
-    // store current transform in temp matrix
-    FXMMATRIX CurrTransformMatrix = 
-    XMMatrixScaling(Scale.x, Scale.y, Scale.z) *
-    XMMatrixRotationX(Rotation.x) * 
-    XMMatrixRotationY(Rotation.y) *
-    XMMatrixRotationZ(Rotation.z) *
-    XMMatrixTranslation(Position.x, Position.y, Position.z);
-
-
-    XMStoreFloat4x4(&transform, CurrTransformMatrix);
-
-    return transform;
-
-}
-
-
-void SceneNode::MoveTo(float x, float y, float z)
-{
-    Position.x = x;
-    Position.y = y;
-    Position.z = z;
+	mWorldPosition.x += x;
+	mWorldPosition.y += y;
+	mWorldPosition.z += z;
 }

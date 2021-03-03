@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{1623d5db-06b2-4a16-8cab-34e9b7bba798}</ProjectGuid>
+    <ProjectGuid>{27e58e55-051d-466f-9fc0-f139ce90ea7a}</ProjectGuid>
     <RootNamespace>A2</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -147,13 +147,13 @@
     <ClCompile Include="..\..\Common\GameTimer.cpp" />
     <ClCompile Include="..\..\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\Common\MathHelper.cpp" />
-    <ClCompile Include="Background.cpp" />
-    <ClCompile Include="Enemy.cpp" />
+    <ClCompile Include="Aircraft.cpp" />
     <ClCompile Include="Entity.cpp" />
+    <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="Player.cpp" />
     <ClCompile Include="SceneNode.cpp" />
+    <ClCompile Include="SpriteNode.cpp" />
     <ClCompile Include="World.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -167,13 +167,13 @@
     <ClInclude Include="..\..\Common\GeometryGenerator.h" />
     <ClInclude Include="..\..\Common\MathHelper.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
-    <ClInclude Include="Background.h" />
-    <ClInclude Include="Enemy.h" />
-    <ClInclude Include="Entity.h" />
-    <ClInclude Include="Game.h" />
-    <ClInclude Include="Player.h" />
-    <ClInclude Include="SceneNode.h" />
-    <ClInclude Include="World.h" />
+    <ClInclude Include="Aircraft.hpp" />
+    <ClInclude Include="Entity.hpp" />
+    <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="Game.hpp" />
+    <ClInclude Include="SceneNode.hpp" />
+    <ClInclude Include="SpriteNode.h" />
+    <ClInclude Include="World.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

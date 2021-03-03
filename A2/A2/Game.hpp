@@ -1,32 +1,14 @@
-#pragma once
-#include "World.h"
+#include "World.hpp"
 
-
-
-
-
-class A1 : public D3DApp
+class Game : public D3DApp
 {
 public:
-	A1(HINSTANCE hInstance);
-	A1(const A1& rhs) = delete;
-	A1& operator=(const A1& rhs) = delete;
-	~A1();
+	Game(HINSTANCE hInstance);
+	Game(const Game& rhs) = delete;
+	Game& operator=(const Game& rhs) = delete;
+	~Game();
 
 	virtual bool Initialize()override;
-
-
-
-
-
-	
-    // getters for resources map ref
-	std::vector<std::unique_ptr<RenderItem>>& getRenderItems() { return mAllRitems; }
-	std::unordered_map<std::string, std::unique_ptr<Material>>& getMaterials() { return mMaterials; }
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>>& getGeometries() { return mGeometries; }
-	std::unordered_map<std::string, std::unique_ptr<Texture>>& getTextures() { return mTextures; }
-
-
 private:
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
@@ -38,40 +20,28 @@ private:
 
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
+	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
+	//step5
 	void LoadTextures();
+
 	void BuildRootSignature();
+
+	//step9
 	void BuildDescriptorHeaps();
+
 	void BuildShadersAndInputLayout();
-
-	void helpBuildSubMesh(GeometryGenerator::MeshData name,
-		SubmeshGeometry& subName,
-		UINT nameVertexOffset,
-		UINT nameIndexOffset);
-
 	void BuildShapeGeometry();
-	void BuildShapeRenderItems();
 	void BuildPSOs();
 	void BuildFrameResources();
 	void BuildMaterials();
+	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
-
-
-
-
-
-	// Entity
-	std::unique_ptr<RenderItem> Plane;
-	std::unique_ptr<RenderItem> Background;
-
-
-
-
 
 private:
 
@@ -83,43 +53,43 @@ private:
 
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
+	//step11
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
-	// map for geometry
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
-
-	// // map for material
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
-	// map for texture
+	//step7
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 
-	// map for shaders
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
 
-	// map for pipeline stage
-	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
-
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+
+	ComPtr<ID3D12PipelineState> mOpaquePSO = nullptr;
 
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
 	// Render items divided by PSO.
-	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
+	std::vector<RenderItem*> mOpaqueRitems;
 
 	PassConstants mMainPassCB;
 
-	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
-	XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+	//XMFLOAT3 mEyePos = { 0.0f, 0.0f, -10.0f };
+	//XMFLOAT4X4 mView = MathHelper::Identity4x4();
+	//XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 
-	float mTheta = 1.5f * XM_PI; 
-	float mPhi = XM_PIDIV2 - 0.1f;
-	float mRadius = 50.0f;
+	//float mTheta = 1.3f * XM_PI;
+	//float mPhi = 0.4f * XM_PI;
+	//float mRadius = 2.5f;
 
 	POINT mLastMousePos;
+	Camera mCamera;
+	World mWorld;
 
-
-    World* mWorld= new World();
+public:
+	std::vector<std::unique_ptr<RenderItem>>& getRenderItems() { return mAllRitems; }
+	std::unordered_map<std::string, std::unique_ptr<Material>>& getMaterials() { return mMaterials; }
+	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>>& getGeometries() { return mGeometries; }
 };

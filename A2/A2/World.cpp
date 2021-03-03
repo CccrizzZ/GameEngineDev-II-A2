@@ -1,85 +1,56 @@
-#include "World.h"
+#include "World.hpp"
 
-World::World()
+World::World(Game* game)
+	: mSceneGraph(new SceneNode(game))
+	, mGame(game)
+	, mPlayerAircraft(nullptr)
+	, mBackground(nullptr)
+	, mWorldBounds(-1.5f, 1.5f, 200.0f, 0.0f) //Left, Right, Down, Up
+	, mSpawnPosition(0.f, 0.f)
+	, mScrollSpeed(1.0f)
 {
 }
 
-World::~World()
+void World::update(const GameTimer& gt)
 {
+	mSceneGraph->update(gt);
 }
 
-// World::World(A1* gRef)
-// {
-
-
-//     // player1 = new Player();
-
-
-// }
-
-
-
-
-void World::Init()
+void World::draw()
 {
-
-
-    player1->setPosition(0.0f,0.1f,-10.0f);
-	player1->setScale(0.1f, 1.0f, 0.1f);
-
-
-
-
-
-
-	bg1->EntityRenderItem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&bg1->EntityRenderItem->World, XMMatrixScaling(2.5f, 1.0f, 2.5f) * XMMatrixTranslation(0.0f, 0.0f, 0.0f));
-	bg1->EntityRenderItem->ObjCBIndex = 0;
-	bg1->EntityRenderItem->Mat = mMaterials["BackgroundMat"].get();
-	bg1->EntityRenderItem->Geo = mGeometries["shapeGeo"].get();
-	//landRitem->World = MathHelper::Identity4x4();
-	bg1->EntityRenderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	bg1->EntityRenderItem->IndexCount = bg1->EntityRenderItem->Geo->DrawArgs["Quad"].IndexCount;
-	bg1->EntityRenderItem->StartIndexLocation = bg1->EntityRenderItem->Geo->DrawArgs["Quad"].StartIndexLocation;
-	bg1->EntityRenderItem->BaseVertexLocation = bg1->EntityRenderItem->Geo->DrawArgs["Quad"].BaseVertexLocation;
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(bg1->EntityRenderItem.get());
-	AllRenderItems.push_back(std::move(bg1->EntityRenderItem));
-
-
-
-
-
-	player1->EntityRenderItem = make_unique<RenderItem>();
-	XMStoreFloat4x4(&player1->EntityRenderItem->World, XMMatrixScaling(0.1f, 1.0f, 0.1f) * XMMatrixTranslation(0.0f, 0.1f, -10.0f));
-	player1->EntityRenderItem->ObjCBIndex = 1;
-	player1->EntityRenderItem->Mat = mMaterials["PlaneMat"].get();
-	player1->EntityRenderItem->Geo = mGeometries["shapeGeo"].get();
-	player1->EntityRenderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	player1->EntityRenderItem->IndexCount = player1->EntityRenderItem->Geo->DrawArgs["Quad"].IndexCount;
-	player1->EntityRenderItem->StartIndexLocation = player1->EntityRenderItem->Geo->DrawArgs["Quad"].StartIndexLocation;
-	player1->EntityRenderItem->BaseVertexLocation = player1->EntityRenderItem->Geo->DrawArgs["Quad"].BaseVertexLocation;
-	mRitemLayer[(int)RenderLayer::Transparent].push_back(player1->EntityRenderItem.get());
-	AllRenderItems.push_back(move(player1->EntityRenderItem));
-
+	mSceneGraph->draw();
 }
 
-
-
-
-void World::Update(const GameTimer& gt)
+void World::buildScene()
 {
-	player1->Update(gt);
+	std::unique_ptr<Aircraft> player(new Aircraft(Aircraft::Eagle, mGame));
+	mPlayerAircraft = player.get();
+	mPlayerAircraft->setPosition(0, 0.1, 0.0);
+	mPlayerAircraft->setScale(0.5, 0.5, 0.5);
+	//mPlayerAircraft->setVelocity(mScrollSpeed, 0.0, 0.0);
+	mSceneGraph->attachChild(std::move(player));
 
-	player1->EntityRenderItem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&player1->EntityRenderItem->World, XMMatrixScaling(player1->Scale.x, player1->Scale.y, player1->Scale.z) * XMMatrixTranslation(player1->Position.x, player1->Position.y, player1->Position.z));
-	player1->EntityRenderItem->ObjCBIndex = 1;
+	std::unique_ptr<Aircraft> enemy1(new Aircraft(Aircraft::Raptor, mGame));
+	auto raptor = enemy1.get();
+	raptor->setPosition(0.5, 0, 1);
+	raptor->setScale(1.0, 1.0, 1.0);
+	raptor->setWorldRotation(0, XM_PI, 0);
+	mPlayerAircraft->attachChild(std::move(enemy1));
 
-	AllRenderItems.push_back(std::move(player1->EntityRenderItem));
-}
+	std::unique_ptr<Aircraft> enemy2(new Aircraft(Aircraft::Raptor, mGame));
+	auto raptor2 = enemy2.get();
+	raptor2->setPosition(-0.5, 0, 1);
+	raptor2->setScale(1.0, 1.0, 1.0);
+	raptor2->setWorldRotation(0, XM_PI, 0);
+	mPlayerAircraft->attachChild(std::move(enemy2));
 
+	std::unique_ptr<SpriteNode> backgroundSprite(new SpriteNode(mGame));
+	mBackground = backgroundSprite.get();
+	//mBackground->setPosition(mWorldBounds.left, mWorldBounds.top);
+	mBackground->setPosition(0, 0, 0.0);
+	mBackground->setScale(10.0, 1.0, 200.0);
+	//mBackground->setVelocity(0, 0, -mScrollSpeed);
+	mSceneGraph->attachChild(std::move(backgroundSprite));
 
-void World::Draw()
-{
-
-
+	mSceneGraph->build();
 }
