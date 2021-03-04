@@ -62,12 +62,27 @@ void Game::OnResize()
 	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 }
 
+
+void Game::processInput()
+{
+	
+	CommandQueue& commands = mWorld.getCommandQueue();
+	mPlayer.handleEvent(commands);
+	mPlayer.handleRealtimeInput(commands);
+
+
+}
+
+
 void Game::Update(const GameTimer& gt)
 {
 	// OnKeyboardInput(gt);
-	//UpdateCamera(gt);
+	// UpdateCamera(gt);
 	mWorld.update(gt);
+	
+	processInput();
 
+	mCamera.UpdateViewMatrix();
 	// Cycle through the circular frame resource array.
 	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
 	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
@@ -151,30 +166,30 @@ void Game::Draw(const GameTimer& gt)
 
 void Game::OnMouseDown(WPARAM btnState, int x, int y)
 {
-	mLastMousePos.x = x;
-	mLastMousePos.y = y;
+	// mLastMousePos.x = x;
+	// mLastMousePos.y = y;
 
-	SetCapture(mhMainWnd);
+	// SetCapture(mhMainWnd);
 }
 
 void Game::OnMouseUp(WPARAM btnState, int x, int y)
 {
-	ReleaseCapture();
+	// ReleaseCapture();
 }
 
 void Game::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if ((btnState & MK_LBUTTON) != 0)
-	{
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
-		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+	// if ((btnState & MK_LBUTTON) != 0)
+	// {
+	// 	// Make each pixel correspond to a quarter of a degree.
+	// 	float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+	// 	float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
-		mCamera.Pitch(dy);
-		mCamera.RotateY(dx);
-	}
-	mLastMousePos.x = x;
-	mLastMousePos.y = y;
+	// 	mCamera.Pitch(dy);
+	// 	mCamera.RotateY(dx);
+	// }
+	// mLastMousePos.x = x;
+	// mLastMousePos.y = y;
 }
 
 void Game::OnKeyboardInput(const GameTimer& gt)
@@ -227,7 +242,6 @@ void Game::OnKeyboardInput(const GameTimer& gt)
 	// }
 
 
-	// mCamera.UpdateViewMatrix();
 }
 
 void Game::UpdateCamera(const GameTimer& gt)
@@ -363,7 +377,7 @@ void Game::LoadTextures()
 	//Desert
 	auto DesertTex = std::make_unique<Texture>();
 	DesertTex->Name = "DesertTex";
-	DesertTex->Filename = L"../../Textures/Desert.dds";
+	DesertTex->Filename = L"../../Textures/grass.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), DesertTex->Filename.c_str(),
 		DesertTex->Resource, DesertTex->UploadHeap));

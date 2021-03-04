@@ -2,6 +2,8 @@
 #include "SceneNode.hpp"
 #include "Aircraft.hpp"
 #include "SpriteNode.h"
+#include "CommandQueue.h"
+
 
 class World 
 {
@@ -12,7 +14,8 @@ public:
 
 	//void loadTextures();
 	void buildScene();
-
+	CommandQueue& getCommandQueue();
+	
 
 private:
 	enum Layer
@@ -31,8 +34,16 @@ private:
 
 	XMFLOAT4 mWorldBounds;
 	XMFLOAT2 mSpawnPosition;
-	float mScrollSpeed;
+
+	// entities
 	Aircraft* mPlayerAircraft;
 	SpriteNode*	mBackground;
 	Aircraft* mEnemy;
+	
+	
+	float mScrollSpeed;
+	XMFLOAT3 aircraftSize;
+	XMFLOAT3 enemySize;
+
+	CommandQueue cQueue;
 };

@@ -48,6 +48,25 @@ struct RenderItem
 };
 
 class Game;
+struct Command;
+
+
+
+namespace Category
+{
+	enum Type
+	{
+		None,
+		Scene,
+		PlayerAircraft,
+		AlliedAircraft,
+		EnemyAircraft,
+	};
+}
+
+
+
+
 
 class SceneNode
 {
@@ -58,41 +77,60 @@ public:
 public:
 	SceneNode(Game* game);
 
-	void					attachChild(Ptr child);
-	Ptr						detachChild(const SceneNode& node);
+	void attachChild(Ptr child);
+	Ptr	detachChild(const SceneNode& node);
 
-	void					update(const GameTimer& gt);
-	void					draw() const;
-	void					build();
+	void update(const GameTimer& gt);
+	void draw() const;
+	void build();
 
-	XMFLOAT3				getWorldPosition() const;
-	void					setPosition(float x, float y, float z);
-	XMFLOAT3				getWorldRotation() const;
-	void					setWorldRotation(float x, float y, float z);
-	XMFLOAT3				getWorldScale() const;
-	void					setScale(float x, float y, float z);
+	// getters
+	XMFLOAT3 getWorldPosition() const;
+	XMFLOAT3 getWorldRotation() const;
+	XMFLOAT3 getWorldScale() const;
+	XMFLOAT4X4 getWorldTransform() const;
+	XMFLOAT4X4 getTransform() const;
 
-	XMFLOAT4X4				getWorldTransform() const;
-	XMFLOAT4X4				getTransform() const;
 
-	void					move(float x, float y, float z);
+	// setters
+	void setWorldRotation(float x, float y, float z);
+	void setPosition(float x, float y, float z);
+	void setPosition(XMFLOAT3 newScale);
+	void setScale(float x, float y, float z);
+	void setScale(XMFLOAT3 newScale);
+
+
+
+	void move(float x, float y, float z);
+	void move(XMFLOAT3 velocity);
+
+
+	void onCommand(const Command& command, const GameTimer& gt);
+
+	unsigned int getCategory() const;
+	void setCategory(int c);
+
 private:
-	virtual void			updateCurrent(const GameTimer& gt);
-	void					updateChildren(const GameTimer& gt);
+	virtual void updateCurrent(const GameTimer& gt);
+	void updateChildren(const GameTimer& gt);
 
-	virtual void			drawCurrent() const;
-	void					drawChildren() const;
-	virtual void			buildCurrent();
-	void					buildChildren();
+	virtual void drawCurrent() const;
+	void drawChildren() const;
+	virtual void buildCurrent();
+	void buildChildren();
 
 protected:
-	Game*					game;
-	RenderItem*				renderer;
+	Game* game;
+	RenderItem* renderer;
 private:
-	XMFLOAT3				mWorldPosition;
-	XMFLOAT3				mWorldRotation;
-	XMFLOAT3				mWorldScaling;
-	std::vector<Ptr>		mChildren;
-	SceneNode*				mParent;
+	XMFLOAT3 mWorldPosition;
+	XMFLOAT3 mWorldRotation;
+	XMFLOAT3 mWorldScaling;
+	std::vector<Ptr> mChildren;
+	SceneNode* mParent;
+
+	int mCategory;
+
+
 };
 

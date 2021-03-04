@@ -53,7 +53,7 @@ public:
     FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
     FrameResource(const FrameResource& rhs) = delete;
     FrameResource& operator=(const FrameResource& rhs) = delete;
-    //~FrameResource();
+    ~FrameResource();
 
     // We cannot reset the allocator until the GPU is done processing the commands.
     // So each frame needs their own allocator.

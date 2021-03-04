@@ -1,12 +1,9 @@
 #pragma once
 #include "Entity.hpp"
 #include <string>
+using namespace std;
 
-
-
-
-
-class Aircraft : public Entity
+class Enemy : public Entity
 {
 public:
 	enum Type
@@ -14,16 +11,19 @@ public:
 		Eagle,
 		Raptor,
 	};
-	
 
-	Aircraft(Type type, Game* game);
-	void Update(const GameTimer& gt);
-	unsigned int getCategory() const;
+	Enemy(Type type, Game* game);
+
+
 private:
 	virtual void drawCurrent() const;
 	virtual void buildCurrent();
 
-
+    
 	Type mType;
-	std::string mSprite;
+	string mSprite;
+
+
+
 };
+

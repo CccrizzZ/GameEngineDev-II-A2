@@ -1,4 +1,5 @@
 #include "World.hpp"
+#include "Player.h"
 
 class Game : public D3DApp
 {
@@ -24,6 +25,10 @@ private:
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
+
+	void processInput();
+
+
 
 	//step5
 	void LoadTextures();
@@ -87,6 +92,7 @@ private:
 	POINT mLastMousePos;
 	Camera mCamera;
 	World mWorld;
+	Player mPlayer;
 
 public:
 	std::vector<std::unique_ptr<RenderItem>>& getRenderItems() { return mAllRitems; }

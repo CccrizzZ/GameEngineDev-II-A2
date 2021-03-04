@@ -1,24 +1,34 @@
-#include "SpriteNode.h"
+#include "Enemy.h"
 #include "Game.hpp"
 
-SpriteNode::SpriteNode(Game* game) : Entity(game)
+Enemy::Enemy(Type type, Game* game) : Entity(game), mType(type)
 {
+    switch (type)
+	{
+	case (Eagle):
+		mSprite = "Eagle";
+		break;
+	case (Raptor):
+		mSprite = "Raptor";
+		break;
+	default:
+		mSprite = "Eagle";
+		break;
+	}
 }
 
-void SpriteNode::drawCurrent() const
+void Enemy::drawCurrent() const
 {
-	renderer->World = getTransform();
-	renderer->NumFramesDirty++;
+
 }
 
-void SpriteNode::buildCurrent()
+void Enemy::buildCurrent()
 {
 	auto render = std::make_unique<RenderItem>();
 	renderer = render.get();
 	renderer->World = getTransform();
-	XMStoreFloat4x4(&renderer->TexTransform, XMMatrixScaling(10.0f, 10.0f, 10.0f));
 	renderer->ObjCBIndex = game->getRenderItems().size();
-	renderer->Mat = game->getMaterials()["Desert"].get();
+	renderer->Mat = game->getMaterials()[mSprite].get();
 	renderer->Geo = game->getGeometries()["boxGeo"].get();
 	renderer->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	renderer->IndexCount = renderer->Geo->DrawArgs["box"].IndexCount;
@@ -27,13 +37,3 @@ void SpriteNode::buildCurrent()
 
 	game->getRenderItems().push_back(std::move(render));
 }
-
-void SpriteNode::Update(const GameTimer gt)
-{
-
-
-	move(0.0f, 0.0f, -0.001f);
-
-}
-
-

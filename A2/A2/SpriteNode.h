@@ -6,8 +6,9 @@ class SpriteNode :
 {
 public:
 	SpriteNode(Game* game);
+	void Update(const GameTimer gt);
 
 private:
-	virtual void		drawCurrent() const;
-	virtual void		buildCurrent();
+	virtual void drawCurrent() const;
+	virtual void buildCurrent();
 };

@@ -1,5 +1,7 @@
 #include "SceneNode.hpp"
 #include "Game.hpp"
+#include "CommandQueue.h"
+
 
 SceneNode::SceneNode(Game* game)
 	: mChildren()
@@ -95,6 +97,12 @@ void SceneNode::setPosition(float x, float y, float z)
 	mWorldPosition = XMFLOAT3(x, y, z);
 }
 
+void SceneNode::setPosition(XMFLOAT3 newScale)
+{
+	mWorldPosition = newScale;
+}
+
+
 XMFLOAT3 SceneNode::getWorldRotation() const
 {
 	return mWorldRotation;
@@ -105,6 +113,7 @@ void SceneNode::setWorldRotation(float x, float y, float z)
 	mWorldRotation = XMFLOAT3(x, y, z);
 }
 
+
 XMFLOAT3 SceneNode::getWorldScale() const
 {
 	return mWorldScaling;
@@ -114,6 +123,12 @@ void SceneNode::setScale(float x, float y, float z)
 {
 	mWorldScaling = XMFLOAT3(x, y, z);
 }
+
+void SceneNode::setScale(XMFLOAT3 newScale)
+{
+	mWorldScaling = newScale;
+}
+
 
 XMFLOAT4X4 SceneNode::getWorldTransform() const
 {
@@ -147,3 +162,35 @@ void SceneNode::move(float x, float y, float z)
 	mWorldPosition.y += y;
 	mWorldPosition.z += z;
 }
+
+void SceneNode::move(XMFLOAT3 velocity)
+{
+	mWorldPosition.x += velocity.x;
+	mWorldPosition.y += velocity.y;
+	mWorldPosition.z += velocity.z;
+}
+
+
+
+
+void SceneNode::onCommand(const Command& command, const GameTimer& gt)
+{
+	// if (command.category == getCategory())
+	// {
+		command.action(*this, gt);
+
+	// }
+	
+	// for (const Ptr& child : mChildren)
+	// {
+	// 	child->onCommand(command, gt);
+	// }
+}
+
+
+
+unsigned int SceneNode::getCategory() const
+{
+	return Category::Type::Scene;
+}
+

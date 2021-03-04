@@ -9,11 +9,23 @@ World::World(Game* game)
 	, mSpawnPosition(0.f, 0.f)
 	, mScrollSpeed(1.0f)
 {
+
+	aircraftSize = XMFLOAT3(0.2f, 0.2f, 0.2f);
 }
 
 void World::update(const GameTimer& gt)
 {
 	mSceneGraph->update(gt);
+	mPlayerAircraft->Update(gt);
+	// Forward commands to the scene graph
+
+	while (!cQueue.isEmpty())
+	{
+		mPlayerAircraft->onCommand(cQueue.pop(), gt);
+
+	}
+	
+	mBackground->Update(gt);
 }
 
 void World::draw()
@@ -23,34 +35,36 @@ void World::draw()
 
 void World::buildScene()
 {
+	// Player
 	std::unique_ptr<Aircraft> player(new Aircraft(Aircraft::Eagle, mGame));
 	mPlayerAircraft = player.get();
-	mPlayerAircraft->setPosition(0, 0.1, 0.0);
-	mPlayerAircraft->setScale(0.5, 0.5, 0.5);
+	mPlayerAircraft->setPosition(0.0f, 0.1f, -1.0f);
+	mPlayerAircraft->setScale(aircraftSize);
 	//mPlayerAircraft->setVelocity(mScrollSpeed, 0.0, 0.0);
 	mSceneGraph->attachChild(std::move(player));
 
-	std::unique_ptr<Aircraft> enemy1(new Aircraft(Aircraft::Raptor, mGame));
-	auto raptor = enemy1.get();
-	raptor->setPosition(0.5, 0, 1);
-	raptor->setScale(1.0, 1.0, 1.0);
-	raptor->setWorldRotation(0, XM_PI, 0);
-	mPlayerAircraft->attachChild(std::move(enemy1));
+	// Enemy
+	std::unique_ptr<Aircraft> enemy3(new Aircraft(Aircraft::Raptor, mGame));
+	auto raptor3 = enemy3.get();
+	raptor3->setPosition(0.5f, 0.0f, 1.0f);
+	raptor3->setScale(aircraftSize);
+	raptor3->setWorldRotation(0, XM_PI, 0);
+	mSceneGraph->attachChild(std::move(enemy3));
 
-	std::unique_ptr<Aircraft> enemy2(new Aircraft(Aircraft::Raptor, mGame));
-	auto raptor2 = enemy2.get();
-	raptor2->setPosition(-0.5, 0, 1);
-	raptor2->setScale(1.0, 1.0, 1.0);
-	raptor2->setWorldRotation(0, XM_PI, 0);
-	mPlayerAircraft->attachChild(std::move(enemy2));
 
+	// Background
 	std::unique_ptr<SpriteNode> backgroundSprite(new SpriteNode(mGame));
 	mBackground = backgroundSprite.get();
 	//mBackground->setPosition(mWorldBounds.left, mWorldBounds.top);
-	mBackground->setPosition(0, 0, 0.0);
-	mBackground->setScale(10.0, 1.0, 200.0);
-	//mBackground->setVelocity(0, 0, -mScrollSpeed);
+	mBackground->setPosition(0.0f, 0.0f, 0.0f);
+	mBackground->setScale(50.0, 1.0, 50.0);
+	// mBackground->setVelocity(0, 0, -mScrollSpeed);
 	mSceneGraph->attachChild(std::move(backgroundSprite));
 
 	mSceneGraph->build();
+}
+
+CommandQueue& World::getCommandQueue()
+{
+	return cQueue;
 }
