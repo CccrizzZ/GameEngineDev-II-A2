@@ -30,8 +30,6 @@ public:
 
     void handleEvent(CommandQueue& commands);
     void handleRealtimeInput(CommandQueue& commands);
-    // void handleRealtimeInput(CommandQueue& commands, World tempwrld);
 
-    // mAircraftMover;
 };
 

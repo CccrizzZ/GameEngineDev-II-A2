@@ -19,6 +19,8 @@ public:
 	Aircraft(Type type, Game* game);
 	void Update(const GameTimer& gt);
 	unsigned int getCategory() const;
+
+	
 private:
 	virtual void drawCurrent() const;
 	virtual void buildCurrent();

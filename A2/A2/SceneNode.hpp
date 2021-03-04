@@ -58,6 +58,7 @@ namespace Category
 	{
 		None,
 		Scene,
+		BackGround,
 		PlayerAircraft,
 		AlliedAircraft,
 		EnemyAircraft,
@@ -107,7 +108,7 @@ public:
 
 	void onCommand(const Command& command, const GameTimer& gt);
 
-	unsigned int getCategory() const;
+	virtual unsigned int getCategory() const;
 	void setCategory(int c);
 
 private:

@@ -3,6 +3,7 @@
 
 SpriteNode::SpriteNode(Game* game) : Entity(game)
 {
+	backgroundSpeed = 0.001f;
 }
 
 void SpriteNode::drawCurrent() const
@@ -30,10 +31,17 @@ void SpriteNode::buildCurrent()
 
 void SpriteNode::Update(const GameTimer gt)
 {
-
-
 	move(0.0f, 0.0f, -0.001f);
-
 }
+
+void SpriteNode::UpdateWithCmd(CommandQueue& commands)
+{
+	// Command moveDown;
+	// moveDown.category = Category::Type::BackGround;
+	// moveDown.action = BGMover(0.0f, 0.0f, -backgroundSpeed);
+	// commands.push(moveDown);
+}
+
+
 
 

@@ -16,15 +16,15 @@ World::World(Game* game)
 void World::update(const GameTimer& gt)
 {
 	mSceneGraph->update(gt);
-	mPlayerAircraft->Update(gt);
-	// Forward commands to the scene graph
+	// mPlayerAircraft->Update(gt);
 
 	while (!cQueue.isEmpty())
 	{
-		mPlayerAircraft->onCommand(cQueue.pop(), gt);
-
+		// mPlayerAircraft->onCommand(cQueue.pop(), gt);
+		// mBackground->UpdateWithCmd(cQueue);
+		mSceneGraph->onCommand(cQueue.pop(), gt);
 	}
-	
+
 	mBackground->Update(gt);
 }
 
@@ -40,7 +40,6 @@ void World::buildScene()
 	mPlayerAircraft = player.get();
 	mPlayerAircraft->setPosition(0.0f, 0.1f, -1.0f);
 	mPlayerAircraft->setScale(aircraftSize);
-	//mPlayerAircraft->setVelocity(mScrollSpeed, 0.0, 0.0);
 	mSceneGraph->attachChild(std::move(player));
 
 	// Enemy
@@ -55,10 +54,8 @@ void World::buildScene()
 	// Background
 	std::unique_ptr<SpriteNode> backgroundSprite(new SpriteNode(mGame));
 	mBackground = backgroundSprite.get();
-	//mBackground->setPosition(mWorldBounds.left, mWorldBounds.top);
 	mBackground->setPosition(0.0f, 0.0f, 0.0f);
 	mBackground->setScale(50.0, 1.0, 50.0);
-	// mBackground->setVelocity(0, 0, -mScrollSpeed);
 	mSceneGraph->attachChild(std::move(backgroundSprite));
 
 	mSceneGraph->build();

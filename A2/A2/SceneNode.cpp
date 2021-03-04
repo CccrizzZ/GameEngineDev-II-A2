@@ -175,16 +175,16 @@ void SceneNode::move(XMFLOAT3 velocity)
 
 void SceneNode::onCommand(const Command& command, const GameTimer& gt)
 {
-	// if (command.category == getCategory())
-	// {
+	if (command.category == getCategory())
+	{
 		command.action(*this, gt);
 
-	// }
+	}
 	
-	// for (const Ptr& child : mChildren)
-	// {
-	// 	child->onCommand(command, gt);
-	// }
+	for (const Ptr& child : mChildren)
+	{
+		child->onCommand(command, gt);
+	}
 }
 
 
