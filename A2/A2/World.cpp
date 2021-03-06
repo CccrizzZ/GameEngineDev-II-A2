@@ -18,10 +18,11 @@ void World::update(const GameTimer& gt)
 	mSceneGraph->update(gt);
 	// mPlayerAircraft->Update(gt);
 
+
+	// update scene graph with command queue
 	while (!cQueue.isEmpty())
 	{
 		// mPlayerAircraft->onCommand(cQueue.pop(), gt);
-		// mBackground->UpdateWithCmd(cQueue);
 		mSceneGraph->onCommand(cQueue.pop(), gt);
 	}
 
